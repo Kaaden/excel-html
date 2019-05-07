@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=0">
+
+    <title>生意参谋</title>
+    <link href="./index.css" rel="stylesheet" type="text/css" />
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <link rel="stylesheet" href="https://gw.alipayobjects.com/os/rmsportal/YmDAMEQVbLJpVbKiRQVX.css" />
+</head>
+
+<body>
+    <div id="app">
+        <div class="header f fc">
+            <p v-cloak :class="['f fc fc-h f1 header-item',{'header-item-active':index===2} ]"
+                v-for="(item,index) in title">
+                {{item}}</p>
+            <i class="el-icon-menu iconItem"></i>
+        </div>
+
+        <div class="time-date">
+            <el-select v-model="value" placeholder="请选择" @change="inputSel">
+                <el-option v-for="(item,index) in time" :key="index" :label="item" :value="item">
+                </el-option>
+            </el-select>
+        </div>
+
+        <div class="main-center">
+            <div class="title-center">核心指标
+            </div>
+            <div class="list-center">
+                <div :class="['item-center',{'item-center-active':active===index}]" v-cloak v-for="(item,index) in vm"
+                    v-if="item.time===value" @click="selChange(index)">
+                    <span class="item-center-title">{{item.type}}</span>
+                    <span class="item-center-mon">{{item.all}}</span>
+                    <span v-if="item.ceil&&item.ceil!==0" class="f fc" style="font-size: 0.18rem"><i
+                            :class="[{'el-icon-caret-top main-up':item.ceil>0},{'el-icon-caret-bottom main-down':item.ceil<0}]"></i>较昨日{{item.ceil}}%</span>
+                </div>
+                <div v-if="!vm.length" style="width:100%;text-align:center;font-size: 0.16rem">暂无数据，请先导入</div>
+
+            </div>
+        </div>
+        <div class="chart-wrapper" style="padding:0 1rem!important">
+            <canvas id="mountNode" style="width:100%;height:500px"></canvas>
+        </div>
+
+        <div class="down-content f fc" @click="openClick">
+            <div class="f fv" style="flex-shrink: 0; font-weight: 600!important;">
+                <span v-cloak>{{t1}}</span>
+                <span v-cloak>{{t2}}</span>
+            </div>
+            <div class="f fv f1" style="margin-left:0.5rem !important;font-size:0.16rem">
+                <span class="line line1" style="margin-bottom:0.1rem" v-cloak><i class="el-icon-info"
+                        style="color:rgb(240,141,71);margin-right:0.2rem"></i>{{t3||"来自云南，通过手淘搜索,来自云南，通过手淘搜索,来自云南，通过手淘搜索,"}}</span>
+                <span class="line line1" v-cloak><i class="el-icon-info"
+                        style="color:rgb(240,141,71);margin-right:0.2rem"></i>{{t4||"来自云南，通过手淘搜索,来自云南，通过手淘搜索,来自云南，通过手淘搜索,"}}</span>
+            </div>
+        </div>
+
+        <div class="upload">
+
+            <div class="file-box">
+                <input type="file" @change="open" id="input" class="file-btn" />
+                <i class="el-icon-edit-outline"></i>
+            </div>
+        </div>
+
+
+
+
+
+
+        <div class="modal-main" v-cloak v-if="visible">
+            <div class="modal-bg">
+
+                <div class="modal-center" style="-webkit-user-select:text !important;">
+                    <input v-model="input1" placeholder="请输入标题" class="modal-center-input"></input>
+                    <input v-model="input2" placeholder="请输入内容1" class="modal-center-input"></input>
+                    <input v-model="input3" placeholder="请输入内容2" class="modal-center-input"></input>
+                    <div class="modal-btn">
+                        <span @click="onSave(true)" class="modal-btn-item"
+                            style="background: #409eff!important;">确定</span>
+                        <span @click="onSave(false)" class="modal-btn-item"
+                            style="background: #f56c6c!important;">取消</span>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+    <script src="./until.js" type="text/javascript"></script>
+    <script type='text/javascript' src="https://cdn.jsdelivr.net/npm/vue"></script>
+    <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+    <script src="https://gw.alipayobjects.com/os/antv/assets/f2/3.3.7/f2.min.js"></script>
+    <script type='text/javascript' src="http://oss.sheetjs.com/js-xlsx/xlsx.full.min.js"></script>
+
+    <script>
+        new Vue({
+            el: '#app',
+            data() {
+                return {
+                    title: ['首页', '商品', '流量', '交易', '行业'],
+                    vm: [],
+                    active: 0,
+                    value: "",
+                    time: [],
+                    isTrue: false,
+                    t1: "实时",
+                    t2: "访客",
+                    t3: "",
+                    t4: "",
+                    input1: "",
+                    input2: "",
+                    input3: "",
+                    visible: false
+                }
+            },
+            mounted() {
+                this.browserRedirect()
+                fontSize()
+                this.time = this.getEvryDay()
+
+            },
+            methods: {
+                browserRedirect() {
+                    var sUserAgent = navigator.userAgent.toLowerCase();
+                    var bIsIpad = sUserAgent.match(/ipad/i) == "ipad";
+                    var bIsIphoneOs = sUserAgent.match(/iphone os/i) == "iphone os";
+                    var bIsMidp = sUserAgent.match(/midp/i) == "midp";
+                    var bIsUc7 = sUserAgent.match(/rv:1.2.3.4/i) == "rv:1.2.3.4";
+                    var bIsUc = sUserAgent.match(/ucweb/i) == "ucweb";
+                    var bIsAndroid = sUserAgent.match(/android/i) == "android";
+                    var bIsCE = sUserAgent.match(/windows ce/i) == "windows ce";
+                    var bIsWM = sUserAgent.match(/windows mobile/i) == "windows mobile";
+                    if (bIsIpad || bIsIphoneOs || bIsMidp || bIsUc7 || bIsUc || bIsAndroid || bIsCE || bIsWM) {
+                        //跳转移动端页面
+                        window.location.href = "./mobile/index.html";
+                    }
+                },
+
+                onSave(type) {
+                    let { input1, input2, input3 } = this
+                    if (type) {
+                        let t = input1 ? input1.split("") : []
+                        this.t3 = input2 ? input2 : ""
+                        this.t4 = input3 ? input3 : ""
+                        if (t.length) {
+                            let t1 = t[0]
+                            let t2 = t[1] ? t[1] : ''
+                            let t3 = t[2] ? t[2] : ''
+                            let t4 = t[3] ? t[3] : ''
+                            this.t1 = t1 + t2
+                            this.t2 = t3 + t4
+
+                        }
+                    }
+                    this.visible = false
+                    this.input1 = ""
+                    this.input2 = ""
+                    this.input3 = ""
+                },
+                openClick() {
+                    this.visible = true
+                },
+                inputSel(e) {
+                    this.value = e
+                    let index = this.vm.findIndex(f => f.time === e)
+                    if (index !== -1) {
+                        this.active = index
+                        let data = this.getDate(this.vm[index].t)
+                        this.chart.source(data); // 更新数据源
+                        this.chart.repaint();  // 更新图表！
+                    }
+                },
+                getEvryDay() {
+                    var dayArry = [];
+                    let dath = this.getCountDays()
+                    let d = new Date()
+                    let year = d.getFullYear()
+                    let month = d.getMonth() + 1
+                    let day = d.getDate()
+                    this.value = year + "-" + month + "-" + day
+                    for (var k = 1; k <= dath; k++) {
+                        let item = year + "-" + month + "-" + k
+                        dayArry.push(item);
+                    }
+                    return dayArry;
+                },
+                getCountDays() {
+                    var curDate = new Date();
+                    /* 获取当前月份 */
+                    var curMonth = curDate.getMonth();
+                    /*  生成实际的月份: 由于curMonth会比实际月份小1, 故需加1 */
+                    curDate.setMonth(curMonth + 1);
+                    /* 将日期设置为0, 这里为什么要这样设置, 我不知道原因, 这是从网上学来的 */
+                    curDate.setDate(0);
+                    /* 返回当月的天数 */
+                    return curDate.getDate();
+                },
+                selChange(index) {
+                    this.active = index
+                    let data = this.getDate(this.vm[index].t)
+                    this.chart.source(data); // 更新数据源
+                    this.chart.repaint();  // 更新图表！
+                },
+
+                async open() {
+                    this.isTrue = false
+                    let active = this.active
+                    let id = document.getElementById("input")
+                    let doc = await getDocument(id)
+                    if (doc) {
+                        let data = this.exChangeData(doc)
+                    }
+
+                },
+                exChangeData(list) {
+                    let array = []
+                    let d = new Date()
+                    let year = d.getFullYear()
+                    let month = d.getMonth() + 1
+                    for (let i = 0, len = list.length; i < len; i++) {
+                        list[i] = timeExChange(list[i])
+                        array.push({
+                            all: list[i].total,
+                            type: list[i]['类型'],
+                            time: year + "-" + month + "-" + list[i]["日期"],
+                            t: list[i].t,
+                        })
+                        if (year + "-" + month + "-" + list[i]["日期"] === this.value && !this.isTrue) {
+                            this.isTrue = true
+                            this.active = i
+                            this.getCharts(list[i].t)
+                        }
+                    }
+                    this.exChangeCeil(array)
+
+                },
+                exChangeCeil(array) {
+                    for (let i = 0, len = array.length; i < len; i++) {
+                        let it = i + 1
+                        if (it < array.length && array[i].type === array[it].type) {
+                            array[i].ceil = (array[i].all - array[it].all) / 100
+                        }
+                    }
+                    this.vm = array
+                },
+                getDate(list) {
+                    let data = []
+                    for (let i = 0, len = list.length; i < len; i++) {
+                        if (list[i]) {
+                            data.push({ name: i, value: Number(list[i]) })
+                        }
+                    }
+                    return data
+                },
+                getCharts(list) {
+                    const data = this.getDate(list)
+                    this.chart = new F2.Chart({
+                        id: 'mountNode',
+                        pixelRatio: window.devicePixelRatio
+                    });
+
+                    this.chart.source(data);
+                    this.chart.scale('name', {
+                        min: 0,
+                        ticks: [0, 6, 12, 18, 23],
+                    });
+                    this.chart.tooltip({
+                        showItemMarker: true,
+                        onShow: function onShow(ev) {
+                            var items = ev.items;
+                            let item = 0
+                            items[0].name = null;
+                            let i = ev.items[0].title
+                            if (i < 10) {
+                                item = `0${i}:00-0${i}:59`
+                            } else {
+                                item = `${i}:00-${i}:59`
+                            }
+                            items[0].name = item
+                            items[0].value = items[0].value;
+                        }
+                    });
+                    this.chart.interval().position('name*value');
+                    this.chart.render();
+                }
+
+            }
+        })
+    </script>
+</body>
+
+</html>
